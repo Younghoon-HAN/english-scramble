@@ -6,29 +6,6 @@
     <title>Master Scramble - Cloud Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Firebase Configuration (환경 변수에서 제공됨)
-        const firebaseConfig = {
-         apiKey: "AIzaSyA3j1y-fDVwULntoBFIVmGlLhROSyk7yRs",
-            authDomain: "english-scramble.firebaseapp.com",
-            projectId: "english-scramble",
-            storageBucket: "english-scramble.firebasestorage.app",
-            messagingSenderId: "1051575656252",
-            appId: "1:1051575656252:web:1a25ee13efbe8dc47fc839",
-            measurementId: "G-L92WNLFTHZ"
-        };
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'english-scramble-app';
-
-        window.fb = { auth, db, appId, doc, setDoc, getDoc, collection, query, onSnapshot, updateDoc, increment };
-    </script>
     <style>
         body { font-family: 'Pretendard', sans-serif; transition: all 0.3s; }
         .dark { background-color: #0f172a; color: #f1f5f9; }
@@ -60,7 +37,7 @@
             <div id="user-avatar" class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold uppercase text-xs">?</div>
             <div>
                 <p id="display-name" class="text-sm font-bold leading-none dark:text-white">사용자</p>
-                <p id="user-id-display" class="text-[10px] text-slate-400">UID: Loading...</p>
+                <p id="user-id-display" class="text-[10px] text-slate-400">ID: 접속 필요</p>
             </div>
         </div>
         <div class="flex gap-2">
@@ -116,7 +93,31 @@
         </div>
     </div>
 
+    <!-- Firebase SDK & Logic -->
     <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ============================================================
+        // [수정 필요] Firebase 콘솔에서 복사한 설정을 아래 객체에 넣으세요.
+        // ============================================================
+        const firebaseConfig = {
+         apiKey: "AIzaSyA3j1y-fDVwULntoBFIVmGlLhROSyk7yRs",
+            authDomain: "english-scramble.firebaseapp.com",
+            projectId: "english-scramble",
+            storageBucket: "english-scramble.firebasestorage.app",
+            messagingSenderId: "1051575656252",
+            appId: "1:1051575656252:web:1a25ee13efbe8dc47fc839",
+            measurementId: "G-L92WNLFTHZ"
+        };
+============================================================
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = 'english-scramble-v1';
+
         const QUIZZES = [
             { en: "Stay hungry stay foolish.", ko: "항상 갈망하고 무모하게 도전하라." },
             { en: "The best way to predict the future is to create it.", ko: "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것이다." },
@@ -127,7 +128,7 @@
 
         let currentIdx = 0;
         let selectedWords = [];
-        let userStats = { score: 0, completed: 0, nickname: '' };
+        let userStats = { score: 0, nickname: '' };
         let currentUser = null;
 
         const ui = {
@@ -150,105 +151,92 @@
             rankList: document.getElementById('rank-list')
         };
 
-        // --- Firebase 연동 로직 ---
-        async function initAuth() {
-            const { auth, signInAnonymously, onAuthStateChanged } = window.fb;
+        // 로그인 프로세스
+        ui.startBtn.onclick = async () => {
+            const nick = ui.nicknameInput.value.trim();
+            if (!nick) return alert("이름을 입력해주세요!");
             
-            // 익명 로그인 시작
-            ui.startBtn.onclick = async () => {
-                const nick = ui.nicknameInput.value.trim();
-                if (!nick) return alert("이름을 입력해주세요!");
-                
-                ui.startBtn.disabled = true;
-                ui.startBtn.innerText = "접속 중...";
-                
-                try {
-                    const cred = await signInAnonymously(auth);
-                    await saveUserData(cred.user.uid, nick, 0);
-                } catch (e) {
-                    console.error(e);
-                    alert("로그인 실패: " + e.message);
-                }
-            };
-
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    currentUser = user;
-                    const data = await getUserData(user.uid);
-                    if (data) {
-                        userStats = data;
-                        ui.loginModal.classList.remove('active');
-                        ui.displayName.innerText = data.nickname;
-                        ui.userAvatar.innerText = data.nickname.charAt(0);
-                        ui.uidDisplay.innerText = `UID: ${user.uid}`;
-                        loadQuiz();
-                        setupLeaderboard();
-                    }
-                }
-            });
-        }
-
-        async function saveUserData(uid, nickname, score) {
-            const { db, appId, doc, setDoc, getDoc } = window.fb;
-            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
-            const snap = await getDoc(userRef);
+            ui.startBtn.disabled = true;
+            ui.startBtn.innerText = "접속 중...";
             
-            if (!snap.exists()) {
-                await setDoc(userRef, { nickname, score, completed: 0, lastUpdated: Date.now() });
+            try {
+                // signInAnonymously 호출 시 auth 객체를 전달해야 함
+                const cred = await signInAnonymously(auth);
+                const uid = cred.user.uid;
+                
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
+                const snap = await getDoc(userRef);
+                
+                if (!snap.exists()) {
+                    await setDoc(userRef, { 
+                        nickname: nick, 
+                        score: 0, 
+                        lastUpdated: Date.now() 
+                    });
+                }
+                ui.loginModal.classList.remove('active');
+            } catch (e) {
+                console.error("Login Error:", e);
+                alert("로그인 실패: " + e.message);
+                ui.startBtn.disabled = false;
+                ui.startBtn.innerText = "학습 시작하기";
             }
-        }
+        };
 
-        async function getUserData(uid) {
-            const { db, appId, doc, getDoc } = window.fb;
-            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
-            const snap = await getDoc(userRef);
-            return snap.exists() ? snap.data() : null;
-        }
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid);
+                
+                onSnapshot(userRef, (snap) => {
+                    if (snap.exists()) {
+                        userStats = snap.data();
+                        ui.displayName.innerText = userStats.nickname;
+                        ui.userAvatar.innerText = userStats.nickname.charAt(0);
+                        ui.uidDisplay.innerText = `ID: ${user.uid.substring(0, 8)}`;
+                        ui.scoreDisplay.innerText = userStats.score;
+                        loadQuiz();
+                    }
+                });
+                setupLeaderboard();
+                ui.loginModal.classList.remove('active');
+            }
+        });
 
-        async function updateScoreInCloud(newScore) {
+        async function updateScoreInCloud() {
             if (!currentUser) return;
-            const { db, appId, doc, updateDoc, increment } = window.fb;
             const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid);
             await updateDoc(userRef, {
                 score: increment(10),
-                completed: increment(1),
                 lastUpdated: Date.now()
             });
-            userStats.score += 10;
-            userStats.completed += 1;
         }
 
         function setupLeaderboard() {
-            const { db, appId, collection, onSnapshot, query } = window.fb;
             const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
-            
             onSnapshot(usersRef, (snap) => {
                 const users = [];
                 snap.forEach(doc => users.push({ id: doc.id, ...doc.data() }));
-                
-                // 점수 내림차순 정렬
                 users.sort((a, b) => b.score - a.score);
                 
                 ui.rankList.innerHTML = users.map((u, i) => `
-                    <div class="flex justify-between items-center p-4 ${u.id === currentUser.uid ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-500' : 'bg-slate-50 dark:bg-slate-900/50'} rounded-2xl">
+                    <div class="flex justify-between items-center p-4 ${u.id === currentUser?.uid ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-500' : 'bg-slate-50 dark:bg-slate-900/50'} rounded-2xl">
                         <div class="flex items-center gap-3">
                             <span class="font-black text-slate-400 w-5">${i + 1}</span>
-                            <div class="w-8 h-8 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center text-xs font-bold">${u.nickname.charAt(0)}</div>
+                            <div class="w-8 h-8 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center text-xs font-bold">${u.nickname?.charAt(0) || '?'}</div>
                             <span class="font-bold dark:text-white">${u.nickname}</span>
                         </div>
                         <span class="font-black text-indigo-600">${u.score}점</span>
                     </div>
                 `).join('');
-            }, (err) => console.error(err));
+            });
         }
 
-        // --- 기존 게임 로직 (유지 및 강화) ---
         function loadQuiz() {
             const quiz = QUIZZES[currentIdx % QUIZZES.length];
             ui.translation.innerText = quiz.ko;
             ui.levelDisplay.innerText = `Sentence ${currentIdx + 1}`;
             ui.progressBar.style.width = `${((currentIdx + 1) / QUIZZES.length) * 100}%`;
-            ui.scoreDisplay.innerText = userStats.score;
             
             ui.answerZone.innerHTML = '';
             ui.answerZone.classList.remove('correct', 'incorrect');
@@ -289,11 +277,10 @@
             const correctSentence = QUIZZES[currentIdx % QUIZZES.length].en.toLowerCase().replace(/[.,!?;]/g, "").trim();
 
             if (userSentence === correctSentence) {
-                ui.feedback.innerText = "정답입니다! 클라우드에 저장 중...";
+                ui.feedback.innerText = "정답입니다!";
                 ui.feedback.className = "mt-6 text-center font-bold text-lg text-emerald-500 opacity-100";
                 ui.answerZone.classList.add('correct');
                 await updateScoreInCloud();
-                ui.scoreDisplay.innerText = userStats.score;
                 ui.checkBtn.classList.add('hidden');
                 ui.nextBtn.classList.remove('hidden');
             } else {
@@ -317,10 +304,7 @@
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
         };
 
-        // 초기 테마 적용 및 앱 시작
         if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
-        initAuth();
-
     </script>
 </body>
 </html>
