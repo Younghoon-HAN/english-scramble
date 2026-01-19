@@ -21,7 +21,7 @@
 </head>
 <body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
 
-    <!-- Auth Overlay (로그인 화면) -->
+    <!-- Auth Overlay -->
     <div id="login-modal" class="modal active">
         <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2rem] p-8 shadow-2xl text-center">
             <h2 class="text-3xl font-black text-indigo-600 mb-2">Master Scramble</h2>
@@ -95,23 +95,23 @@
 
     <!-- Firebase SDK & Logic -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Firebase 라이브러리를 특정 버전으로 고정하여 안정성 확보
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // ============================================================
         // [수정 필요] Firebase 콘솔에서 복사한 설정을 아래 객체에 넣으세요.
         // ============================================================
         const firebaseConfig = {
-         apiKey: "AIzaSyA3j1y-fDVwULntoBFIVmGlLhROSyk7yRs",
+            apiKey: "AIzaSyA3j1y-fDVwULntoBFIVmGlLhROSyk7yRs",
             authDomain: "english-scramble.firebaseapp.com",
             projectId: "english-scramble",
             storageBucket: "english-scramble.firebasestorage.app",
             messagingSenderId: "1051575656252",
             appId: "1:1051575656252:web:1a25ee13efbe8dc47fc839",
-            measurementId: "G-L92WNLFTHZ"
-        };
-============================================================
+            measurementId: "G-L92WNLFTHZ"        };
+        // ============================================================
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -151,16 +151,21 @@
             rankList: document.getElementById('rank-list')
         };
 
-        // 로그인 프로세스
-        ui.startBtn.onclick = async () => {
+        // 로그인 프로세스 (수정된 안전한 방식)
+        ui.startBtn.addEventListener('click', async () => {
             const nick = ui.nicknameInput.value.trim();
-            if (!nick) return alert("이름을 입력해주세요!");
+            if (!nick) {
+                alert("이름을 입력해주세요!");
+                return;
+            }
             
             ui.startBtn.disabled = true;
             ui.startBtn.innerText = "접속 중...";
             
             try {
-                // signInAnonymously 호출 시 auth 객체를 전달해야 함
+                // auth 객체를 명시적으로 확인 후 로그인 진행
+                if (!auth) throw new Error("Firebase Auth가 초기화되지 않았습니다.");
+                
                 const cred = await signInAnonymously(auth);
                 const uid = cred.user.uid;
                 
@@ -176,13 +181,14 @@
                 }
                 ui.loginModal.classList.remove('active');
             } catch (e) {
-                console.error("Login Error:", e);
-                alert("로그인 실패: " + e.message);
+                console.error("Login Error Details:", e);
+                alert(`로그인 실패: ${e.message}\n익명 로그인이 활성화되어 있는지 확인하세요.`);
                 ui.startBtn.disabled = false;
                 ui.startBtn.innerText = "학습 시작하기";
             }
-        };
+        });
 
+        // 인증 상태 리스너
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
@@ -223,7 +229,7 @@
                     <div class="flex justify-between items-center p-4 ${u.id === currentUser?.uid ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-500' : 'bg-slate-50 dark:bg-slate-900/50'} rounded-2xl">
                         <div class="flex items-center gap-3">
                             <span class="font-black text-slate-400 w-5">${i + 1}</span>
-                            <div class="w-8 h-8 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center text-xs font-bold">${u.nickname?.charAt(0) || '?'}</div>
+                            <div class="w-8 h-8 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center text-xs font-bold uppercase">${u.nickname?.charAt(0) || '?'}</div>
                             <span class="font-bold dark:text-white">${u.nickname}</span>
                         </div>
                         <span class="font-black text-indigo-600">${u.score}점</span>
