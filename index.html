@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Scramble - Cloud Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration (환경 변수에서 제공됨)
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'english-scramble-app';
+
+        window.fb = { auth, db, appId, doc, setDoc, getDoc, collection, query, onSnapshot, updateDoc, increment };
+    </script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; transition: all 0.3s; }
+        .dark { background-color: #0f172a; color: #f1f5f9; }
+        .word-tile { transition: all 0.2s; cursor: pointer; user-select: none; }
+        .word-tile.selected { opacity: 0.3; pointer-events: none; }
+        .drop-zone { min-height: 80px; border: 2px dashed #e2e8f0; border-radius: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .dark .drop-zone { border-color: #334155; background-color: #1e293b; }
+        .correct { border-color: #22c55e !important; background-color: #f0fdf4 !important; }
+        .incorrect { border-color: #ef4444 !important; background-color: #fef2f2 !important; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
+
+    <!-- Auth Overlay (로그인 화면) -->
+    <div id="login-modal" class="modal active">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2rem] p-8 shadow-2xl text-center">
+            <h2 class="text-3xl font-black text-indigo-600 mb-2">Master Scramble</h2>
+            <p class="text-slate-500 mb-8">학습을 시작하려면 이름을 입력하세요.</p>
+            <input type="text" id="user-nickname" placeholder="학생 이름을 입력하세요" class="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900 mb-4 outline-none focus:ring-2 focus:ring-indigo-500">
+            <button id="start-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all">학습 시작하기</button>
+        </div>
+    </div>
+
+    <!-- Main UI -->
+    <nav class="w-full max-w-2xl flex justify-between items-center mb-6 py-2">
+        <div class="flex items-center gap-3">
+            <div id="user-avatar" class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold uppercase text-xs">?</div>
+            <div>
+                <p id="display-name" class="text-sm font-bold leading-none dark:text-white">사용자</p>
+                <p id="user-id-display" class="text-[10px] text-slate-400">UID: Loading...</p>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button id="rank-btn" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">🏆 순위</button>
+            <button id="theme-toggle" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">🌙</button>
+        </div>
+    </nav>
+
+    <main id="game-container" class="w-full max-w-2xl bg-white dark:bg-slate-800 shadow-xl rounded-[2.5rem] p-6 md:p-10 transition-all border border-slate-100 dark:border-slate-700">
+        <div class="flex justify-between items-end mb-6">
+            <div>
+                <p id="level-display" class="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">Level 1</p>
+                <h2 id="translation" class="text-xl md:text-2xl font-bold text-slate-800 dark:text-white leading-tight">문장을 불러오는 중...</h2>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">My Score</p>
+                <p id="score-display" class="text-2xl font-black text-slate-700 dark:text-slate-200">0</p>
+            </div>
+        </div>
+
+        <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full mb-8 overflow-hidden">
+            <div id="progress-bar" class="bg-indigo-500 h-full w-0 transition-all duration-700"></div>
+        </div>
+
+        <div class="mb-6">
+            <p class="text-[10px] font-extrabold text-slate-400 mb-2 uppercase tracking-widest">Sentence Construction</p>
+            <div id="answer-zone" class="drop-zone p-4"></div>
+        </div>
+
+        <div class="mb-10">
+            <p class="text-[10px] font-extrabold text-slate-400 mb-3 uppercase tracking-widest">Available Words</p>
+            <div id="word-pool" class="flex flex-wrap gap-2 justify-center min-h-[60px]"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <button id="reset-btn" class="py-4 px-6 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600">초기화</button>
+            <button id="check-btn" class="py-4 px-6 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transform active:scale-95 transition-all">정답 확인</button>
+            <button id="next-btn" class="hidden col-span-2 py-4 px-6 bg-emerald-500 text-white rounded-2xl font-bold shadow-lg hover:bg-emerald-600 transition-all">다음 단계</button>
+        </div>
+        <div id="feedback" class="mt-6 text-center font-bold text-lg opacity-0 transition-all h-6">정답입니다!</div>
+    </main>
+
+    <!-- Leaderboard Modal -->
+    <div id="rank-modal" class="modal">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2rem] p-8 shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold dark:text-white">실시간 순위표</h3>
+                <button id="rank-close" class="text-2xl text-slate-400">&times;</button>
+            </div>
+            <div id="rank-list" class="space-y-3 max-h-80 overflow-y-auto">
+                <p class="text-center text-slate-400 text-sm py-10">데이터를 불러오는 중...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const QUIZZES = [
+            { en: "Stay hungry stay foolish.", ko: "항상 갈망하고 무모하게 도전하라." },
+            { en: "The best way to predict the future is to create it.", ko: "미래를 예측하는 가장 좋은 방법은 미래를 창조하는 것이다." },
+            { en: "To be or not to be that is the question.", ko: "사느냐 죽느냐 그것이 문제로다." },
+            { en: "Practice makes perfect.", ko: "연습이 완벽을 만든다." },
+            { en: "Knowledge is power.", ko: "아는 것이 힘이다." }
+        ];
+
+        let currentIdx = 0;
+        let selectedWords = [];
+        let userStats = { score: 0, completed: 0, nickname: '' };
+        let currentUser = null;
+
+        const ui = {
+            loginModal: document.getElementById('login-modal'),
+            nicknameInput: document.getElementById('user-nickname'),
+            startBtn: document.getElementById('start-btn'),
+            displayName: document.getElementById('display-name'),
+            userAvatar: document.getElementById('user-avatar'),
+            uidDisplay: document.getElementById('user-id-display'),
+            translation: document.getElementById('translation'),
+            answerZone: document.getElementById('answer-zone'),
+            wordPool: document.getElementById('word-pool'),
+            feedback: document.getElementById('feedback'),
+            checkBtn: document.getElementById('check-btn'),
+            nextBtn: document.getElementById('next-btn'),
+            progressBar: document.getElementById('progress-bar'),
+            levelDisplay: document.getElementById('level-display'),
+            scoreDisplay: document.getElementById('score-display'),
+            rankModal: document.getElementById('rank-modal'),
+            rankList: document.getElementById('rank-list')
+        };
+
+        // --- Firebase 연동 로직 ---
+        async function initAuth() {
+            const { auth, signInAnonymously, onAuthStateChanged } = window.fb;
+            
+            // 익명 로그인 시작
+            ui.startBtn.onclick = async () => {
+                const nick = ui.nicknameInput.value.trim();
+                if (!nick) return alert("이름을 입력해주세요!");
+                
+                ui.startBtn.disabled = true;
+                ui.startBtn.innerText = "접속 중...";
+                
+                try {
+                    const cred = await signInAnonymously(auth);
+                    await saveUserData(cred.user.uid, nick, 0);
+                } catch (e) {
+                    console.error(e);
+                    alert("로그인 실패: " + e.message);
+                }
+            };
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    currentUser = user;
+                    const data = await getUserData(user.uid);
+                    if (data) {
+                        userStats = data;
+                        ui.loginModal.classList.remove('active');
+                        ui.displayName.innerText = data.nickname;
+                        ui.userAvatar.innerText = data.nickname.charAt(0);
+                        ui.uidDisplay.innerText = `UID: ${user.uid}`;
+                        loadQuiz();
+                        setupLeaderboard();
+                    }
+                }
+            });
+        }
+
+        async function saveUserData(uid, nickname, score) {
+            const { db, appId, doc, setDoc, getDoc } = window.fb;
+            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
+            const snap = await getDoc(userRef);
+            
+            if (!snap.exists()) {
+                await setDoc(userRef, { nickname, score, completed: 0, lastUpdated: Date.now() });
+            }
+        }
+
+        async function getUserData(uid) {
+            const { db, appId, doc, getDoc } = window.fb;
+            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
+            const snap = await getDoc(userRef);
+            return snap.exists() ? snap.data() : null;
+        }
+
+        async function updateScoreInCloud(newScore) {
+            if (!currentUser) return;
+            const { db, appId, doc, updateDoc, increment } = window.fb;
+            const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid);
+            await updateDoc(userRef, {
+                score: increment(10),
+                completed: increment(1),
+                lastUpdated: Date.now()
+            });
+            userStats.score += 10;
+            userStats.completed += 1;
+        }
+
+        function setupLeaderboard() {
+            const { db, appId, collection, onSnapshot, query } = window.fb;
+            const usersRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+            
+            onSnapshot(usersRef, (snap) => {
+                const users = [];
+                snap.forEach(doc => users.push({ id: doc.id, ...doc.data() }));
+                
+                // 점수 내림차순 정렬
+                users.sort((a, b) => b.score - a.score);
+                
+                ui.rankList.innerHTML = users.map((u, i) => `
+                    <div class="flex justify-between items-center p-4 ${u.id === currentUser.uid ? 'bg-indigo-50 dark:bg-indigo-900/30 ring-1 ring-indigo-500' : 'bg-slate-50 dark:bg-slate-900/50'} rounded-2xl">
+                        <div class="flex items-center gap-3">
+                            <span class="font-black text-slate-400 w-5">${i + 1}</span>
+                            <div class="w-8 h-8 bg-white dark:bg-slate-700 rounded-full flex items-center justify-center text-xs font-bold">${u.nickname.charAt(0)}</div>
+                            <span class="font-bold dark:text-white">${u.nickname}</span>
+                        </div>
+                        <span class="font-black text-indigo-600">${u.score}점</span>
+                    </div>
+                `).join('');
+            }, (err) => console.error(err));
+        }
+
+        // --- 기존 게임 로직 (유지 및 강화) ---
+        function loadQuiz() {
+            const quiz = QUIZZES[currentIdx % QUIZZES.length];
+            ui.translation.innerText = quiz.ko;
+            ui.levelDisplay.innerText = `Sentence ${currentIdx + 1}`;
+            ui.progressBar.style.width = `${((currentIdx + 1) / QUIZZES.length) * 100}%`;
+            ui.scoreDisplay.innerText = userStats.score;
+            
+            ui.answerZone.innerHTML = '';
+            ui.answerZone.classList.remove('correct', 'incorrect');
+            ui.feedback.style.opacity = '0';
+            ui.nextBtn.classList.add('hidden');
+            ui.checkBtn.classList.remove('hidden');
+            selectedWords = [];
+
+            const words = quiz.en.split(/\s+/).filter(w => w.length > 0);
+            const shuffled = [...words].sort(() => Math.random() - 0.5);
+
+            ui.wordPool.innerHTML = '';
+            shuffled.forEach((word) => {
+                const btn = document.createElement('div');
+                btn.className = 'word-tile bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-4 py-3 rounded-xl font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:border-indigo-400';
+                btn.innerText = word;
+                btn.onclick = () => selectWord(btn, word);
+                ui.wordPool.appendChild(btn);
+            });
+        }
+
+        function selectWord(originalBtn, word) {
+            originalBtn.classList.add('selected');
+            const tile = document.createElement('div');
+            tile.className = 'word-tile bg-indigo-600 text-white px-4 py-3 rounded-xl font-bold shadow-md';
+            tile.innerText = word;
+            tile.onclick = () => {
+                originalBtn.classList.remove('selected');
+                tile.remove();
+                selectedWords = selectedWords.filter(item => item.tile !== tile);
+            };
+            ui.answerZone.appendChild(tile);
+            selectedWords.push({ word, tile });
+        }
+
+        ui.checkBtn.onclick = async () => {
+            const userSentence = selectedWords.map(w => w.word.toLowerCase().replace(/[.,!?;]/g, "")).join(' ');
+            const correctSentence = QUIZZES[currentIdx % QUIZZES.length].en.toLowerCase().replace(/[.,!?;]/g, "").trim();
+
+            if (userSentence === correctSentence) {
+                ui.feedback.innerText = "정답입니다! 클라우드에 저장 중...";
+                ui.feedback.className = "mt-6 text-center font-bold text-lg text-emerald-500 opacity-100";
+                ui.answerZone.classList.add('correct');
+                await updateScoreInCloud();
+                ui.scoreDisplay.innerText = userStats.score;
+                ui.checkBtn.classList.add('hidden');
+                ui.nextBtn.classList.remove('hidden');
+            } else {
+                ui.feedback.innerText = "틀렸습니다. 다시 시도하세요!";
+                ui.feedback.className = "mt-6 text-center font-bold text-lg text-red-500 opacity-100";
+                ui.answerZone.classList.add('incorrect');
+                setTimeout(() => ui.answerZone.classList.remove('incorrect'), 800);
+            }
+        };
+
+        ui.nextBtn.onclick = () => {
+            currentIdx++;
+            loadQuiz();
+        };
+
+        document.getElementById('reset-btn').onclick = loadQuiz;
+        document.getElementById('rank-btn').onclick = () => ui.rankModal.classList.add('active');
+        document.getElementById('rank-close').onclick = () => ui.rankModal.classList.remove('active');
+        document.getElementById('theme-toggle').onclick = () => {
+            const isDark = document.body.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        };
+
+        // 초기 테마 적용 및 앱 시작
+        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+        initAuth();
+
+    </script>
+</body>
+</html>
