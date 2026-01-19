@@ -13,7 +13,15 @@
         import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Firebase Configuration (환경 변수에서 제공됨)
-        const firebaseConfig = JSON.parse(__firebase_config);
+        const firebaseConfig = {
+         apiKey: "AIzaSyA3j1y-fDVwULntoBFIVmGlLhROSyk7yRs",
+            authDomain: "english-scramble.firebaseapp.com",
+            projectId: "english-scramble",
+            storageBucket: "english-scramble.firebasestorage.app",
+            messagingSenderId: "1051575656252",
+            appId: "1:1051575656252:web:1a25ee13efbe8dc47fc839",
+            measurementId: "G-L92WNLFTHZ"
+        };
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
