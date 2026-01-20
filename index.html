@@ -62,7 +62,7 @@
         <div class="flex justify-between items-start mb-8">
             <div class="flex-1">
                 <div id="level-badge" class="inline-block px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-black uppercase tracking-widest mb-3">Sentence 1</div>
-                <h2 id="translation" class="text-2xl md:text-3xl font-black text-slate-800 dark:text-white leading-tight">이름을 먼저 입력해 주세요.</h2>
+                <h2 id="translation" class="text-2xl md:text-3xl font-black text-slate-800 dark:text-white leading-tight">데이터를 불러오는 중...</h2>
             </div>
             <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-[1.5rem] text-center min-w-[100px] border border-slate-100 dark:border-slate-800">
                 <p class="text-[10px] font-black text-slate-400 uppercase mb-1">My Score</p>
@@ -101,7 +101,6 @@
             <button id="rank-close" class="absolute top-6 right-6 w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:bg-slate-200">&times;</button>
             <h3 class="text-2xl font-black mb-8 dark:text-white flex items-center gap-3">🏆 실시간 순위표</h3>
             <div id="rank-list" class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                <!-- 데이터 로딩 중 표시 -->
                 <p class="text-center py-10 text-slate-400">순위 데이터를 불러오는 중...</p>
             </div>
         </div>
@@ -136,8 +135,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, increment, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // [주의] 이 설정값을 본인의 Firebase 설정값으로 반드시 교체하세요!
-      const firebaseConfig = {
+        const firebaseConfig = {
             apiKey: "AIzaSyA3j1y-fDVwULntoBFIVmGlLhROSyk7yRs",
             authDomain: "english-scramble.firebaseapp.com",
             projectId: "english-scramble",
@@ -148,12 +146,18 @@
 
         const GEMINI_API_KEY = "AIzaSyAW3PAPC5lBZvqR_xUN0Tr1y3eS-Oe3uPc"; 
 
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = 'scramble-pro-v3';
 
-        let quizzes = [];
+        // 기본 퀴즈 데이터 (DB가 비어있을 때 사용)
+        let quizzes = [
+            { en: "This is the car that I bought yesterday.", ko: "이것은 내가 어제 샀던 자동차이다." },
+            { en: "The girl whom I met at the party is kind.", ko: "내가 파티에서 만났던 소녀는 친절하다." },
+            { en: "I like the movie which we watched together.", ko: "나는 우리가 같이 봤던 영화를 좋아한다." }
+        ];
         let currentIdx = 0;
         let selectedWords = [];
         let currentUser = null;
@@ -174,7 +178,7 @@
             rankList: document.getElementById('rank-list')
         };
 
-        // 1. 로그인 처리 (이름 필수 입력)
+        // 1. 로그인 처리
         ui.startBtn.onclick = async () => {
             const nickname = ui.nicknameInput.value.trim();
             if (!nickname) {
@@ -189,7 +193,6 @@
                 const cred = await signInAnonymously(auth);
                 const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', cred.user.uid);
                 
-                // 학생 데이터 생성
                 await setDoc(userRef, {
                     nickname: nickname,
                     score: 0,
@@ -197,6 +200,8 @@
                 }, { merge: true });
 
                 ui.loginModal.classList.remove('active');
+                // 로그인 직후 게임 로드 강제 실행
+                loadQuiz(); 
             } catch (e) {
                 console.error(e);
                 alert("접속 실패: Firebase 설정을 확인하세요.");
@@ -205,11 +210,10 @@
             }
         };
 
-        // 2. 인증 및 데이터 연동
+        // 2. 인증 감지 및 초기화
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                // 내 점수 실시간 연동
                 onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), (snap) => {
                     if (snap.exists()) {
                         const data = snap.data();
@@ -222,19 +226,20 @@
             }
         });
 
-        // 3. 클라우드 데이터 동기화
+        // 3. 데이터 동기화
         function setupSync() {
-            // 퀴즈 목록 가져오기
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'quizzes'), (snap) => {
-                quizzes = [];
-                snap.forEach(doc => quizzes.push({ id: doc.id, ...doc.data() }));
-                quizzes.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                const cloudQuizzes = [];
+                snap.forEach(doc => cloudQuizzes.push({ id: doc.id, ...doc.data() }));
                 
-                if (quizzes.length > 0) loadQuiz();
+                if (cloudQuizzes.length > 0) {
+                    quizzes = cloudQuizzes.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                }
+                
+                loadQuiz();
                 updateAdminList();
             });
 
-            // 순위표 업데이트
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snap) => {
                 const users = [];
                 snap.forEach(doc => users.push({ id: doc.id, ...doc.data() }));
@@ -252,9 +257,10 @@
             });
         }
 
-        // 4. 게임 핵심 로직
+        // 4. 게임 로직
         function loadQuiz() {
-            if (quizzes.length === 0) return;
+            if (!currentUser || quizzes.length === 0) return;
+            
             const quiz = quizzes[currentIdx % quizzes.length];
             ui.translation.innerText = quiz.ko;
             ui.progressBar.style.width = `${((currentIdx + 1) / quizzes.length) * 100}%`;
@@ -302,11 +308,12 @@
                 ui.feedback.className = "mt-8 text-center font-black text-xl text-emerald-500 opacity-100";
                 ui.answerZone.classList.add('correct');
                 
-                // 점수 실시간 DB 업데이트
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
-                    score: increment(10),
-                    lastUpdated: Date.now()
-                });
+                if (currentUser) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
+                        score: increment(10),
+                        lastUpdated: Date.now()
+                    });
+                }
 
                 ui.checkBtn.classList.add('hidden');
                 ui.nextBtn.classList.remove('hidden');
@@ -323,17 +330,21 @@
             loadQuiz();
         };
 
-        // 5. 관리 기능 (AI 및 목록 관리)
+        // 5. 관리 기능
         document.getElementById('generate-ai-btn').onclick = async () => {
             const prompt = document.getElementById('ai-prompt').value.trim();
             if (!prompt || !GEMINI_API_KEY) return alert("프롬프트와 API 키를 확인하세요.");
             
-            document.getElementById('generate-ai-btn').disabled = true;
+            const btn = document.getElementById('generate-ai-btn');
+            btn.disabled = true;
+            btn.innerText = "생성 중...";
+
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Generate 5 English sentences with 'Objective case relative pronouns' about: ${prompt}. Format: JSON [{"en":"...", "ko":"..."}]` }] }],
+                        contents: [{ parts: [{ text: `Generate 5 English sentences with 'Objective case relative pronouns' (who, whom, which, that) about: ${prompt}. Each sentence must be a single string. Output format: JSON array of objects with keys "en" and "ko". Example: [{"en": "The book that I read was fun", "ko": "내가 읽은 책은 재미있었다"}]` }] }],
                         generationConfig: { responseMimeType: "application/json" }
                     })
                 });
@@ -347,8 +358,13 @@
                 });
                 await batch.commit();
                 document.getElementById('ai-prompt').value = "";
-            } catch (e) { console.error(e); alert("AI 생성 오류"); }
-            document.getElementById('generate-ai-btn').disabled = false;
+            } catch (e) { 
+                console.error(e); 
+                alert("AI 생성 오류가 발생했습니다."); 
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "생성";
+            }
         };
 
         function updateAdminList() {
@@ -364,9 +380,13 @@
             `).join('');
         }
 
-        window.delQuiz = async (id) => { if(confirm("삭제할까요?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'quizzes', id)); };
+        window.delQuiz = async (id) => { 
+            if(id && confirm("삭제할까요?")) {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'quizzes', id)); 
+            }
+        };
 
-        // 6. 기타 UI 이벤트
+        // 6. UI 이벤트
         document.getElementById('rank-btn').onclick = () => document.getElementById('rank-modal').classList.add('active');
         document.getElementById('rank-close').onclick = () => document.getElementById('rank-modal').classList.remove('active');
         document.getElementById('admin-btn').onclick = () => document.getElementById('admin-modal').classList.add('active');
