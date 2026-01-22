@@ -1,346 +1,797 @@
 <!DOCTYPE html>
+
 <html lang="ko">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Scramble - GitHub Edition</title>
+
+    <title>AI Scramble - 목적격 관계대명사</title>
+
     <script src="https://cdn.tailwindcss.com"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap" rel="stylesheet">
+
     <style>
+
         body { font-family: 'Pretendard', sans-serif; transition: all 0.3s; }
+
+        .dark { background-color: #0f172a; color: #f1f5f9; }
+
         .word-tile { transition: all 0.2s; cursor: pointer; user-select: none; }
+
         .word-tile.selected { opacity: 0.3; pointer-events: none; }
+
         .drop-zone { min-height: 80px; border: 2px dashed #e2e8f0; border-radius: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+        .dark .drop-zone { border-color: #334155; background-color: #1e293b; }
+
+        .correct { border-color: #22c55e !important; background-color: #f0fdf4 !important; }
+
+        .incorrect { border-color: #ef4444 !important; background-color: #fef2f2 !important; }
+
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; padding: 1rem; }
+
         .modal.active { display: flex; }
-        #custom-alert { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; }
-        .spinner { border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top: 3px solid #fff; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; margin-right: 8px; vertical-align: middle; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
     </style>
+
 </head>
+
 <body class="bg-slate-50 min-h-screen flex flex-col items-center p-4">
 
-    <!-- 알림 메시지 -->
-    <div id="custom-alert" class="bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl font-bold text-sm animate-bounce"></div>
 
-    <!-- 닉네임 입력 모달 -->
+
+    <!-- 1. 로그인 모달 (필수 입력) -->
+
     <div id="login-modal" class="modal active">
-        <div class="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl text-center border border-slate-100">
-            <h2 class="text-3xl font-black text-slate-800 mb-2">AI Scramble</h2>
-            <p class="text-slate-500 mb-8">학습을 시작하려면 이름을 입력하세요.</p>
+
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl text-center border border-slate-100">
+
+            <div class="mb-6">
+
+                <span class="px-4 py-1.5 bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold tracking-widest uppercase">Grammar Master</span>
+
+            </div>
+
+            <h2 class="text-3xl font-black text-slate-800 dark:text-white mb-2">목적격 관계대명사</h2>
+
+            <p class="text-slate-500 dark:text-slate-400 mb-8">학습을 시작하려면 이름을 입력하세요.</p>
+
+            
+
             <input type="text" id="user-nickname" placeholder="이름을 입력하세요" 
-                   class="w-full p-4 rounded-2xl border border-slate-200 mb-4 outline-none focus:ring-4 focus:ring-indigo-500/20 text-center font-bold text-lg">
-            <button id="start-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl">학습 시작하기</button>
-            <p id="auth-error-hint" class="mt-4 text-xs text-red-500 hidden font-semibold">Firebase 설정이 올바르지 않습니다. 코드를 확인해 주세요.</p>
+
+                   class="w-full p-4 rounded-2xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900 mb-4 outline-none focus:ring-4 focus:ring-indigo-500/20 text-center font-bold text-lg">
+
+            
+
+            <button id="start-btn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-200 active:scale-95">학습 시작하기</button>
+
+            
+
+            <p class="mt-6 text-xs text-slate-400">입력하신 이름으로 실시간 순위가 기록됩니다.</p>
+
         </div>
+
     </div>
 
-    <!-- 네비게이션 -->
+
+
+    <!-- 2. 상단 네비게이션 (사용자 정보 표시) -->
+
     <nav class="w-full max-w-2xl flex justify-between items-center mb-6 py-2 px-4">
+
         <div class="flex items-center gap-3">
+
             <div id="user-avatar" class="w-11 h-11 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg">?</div>
+
             <div>
-                <p id="display-name" class="text-sm font-black text-slate-700">GUEST</p>
-                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">Live Learning</p>
+
+                <p id="display-name" class="text-sm font-black dark:text-white">접속 대기 중</p>
+
+                <div class="flex items-center gap-1.5">
+
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+
+                    <p class="text-[11px] font-bold text-slate-400 uppercase tracking-tighter">Live Syncing</p>
+
+                </div>
+
             </div>
+
         </div>
+
         <div class="flex gap-2.5">
-            <button id="settings-btn" class="p-3 rounded-2xl bg-white shadow-sm border border-slate-200 hover:bg-slate-50">🔑 AI 설정</button>
-            <button id="admin-btn" class="p-3 rounded-2xl bg-white shadow-sm border border-slate-200 hover:bg-slate-50">⚙️ 관리</button>
+
+            <button id="rank-btn" class="p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all">🏆 순위표</button>
+
+            <button id="admin-btn" class="p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-all">⚙️</button>
+
         </div>
+
     </nav>
 
-    <!-- 메인 게임 영역 -->
-    <main id="game-container" class="w-full max-w-2xl bg-white shadow-2xl rounded-[3rem] p-8 md:p-12 border border-slate-100 relative overflow-hidden">
+
+
+    <!-- 3. 메인 게임 영역 -->
+
+    <main id="game-container" class="w-full max-w-2xl bg-white dark:bg-slate-800 shadow-2xl rounded-[3rem] p-8 md:p-12 transition-all border border-slate-100 dark:border-slate-700 relative overflow-hidden">
+
         <div class="flex justify-between items-start mb-8">
+
             <div class="flex-1">
-                <div id="level-badge" class="inline-block px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase mb-3">Sentence 0 / 0</div>
-                <h2 id="translation" class="text-2xl md:text-3xl font-black text-slate-800 leading-tight">문장을 생성해 주세요.</h2>
+
+                <div id="level-badge" class="inline-block px-3 py-1 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg text-[10px] font-black uppercase tracking-widest mb-3">Sentence 1</div>
+
+                <h2 id="translation" class="text-2xl md:text-3xl font-black text-slate-800 dark:text-white leading-tight">데이터를 불러오는 중...</h2>
+
             </div>
-            <div class="bg-slate-50 p-4 rounded-[1.5rem] text-center min-w-[100px]">
-                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Score</p>
-                <p id="score-display" class="text-3xl font-black text-indigo-600">0</p>
+
+            <div class="bg-slate-50 dark:bg-slate-900 p-4 rounded-[1.5rem] text-center min-w-[100px] border border-slate-100 dark:border-slate-800">
+
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-1">My Score</p>
+
+                <p id="score-display" class="text-3xl font-black text-indigo-600 dark:text-indigo-400">0</p>
+
             </div>
+
         </div>
-        <div id="answer-zone" class="drop-zone p-5 bg-slate-50/50 mb-8"></div>
-        <div id="word-pool" class="flex flex-wrap gap-2.5 justify-center mb-12"></div>
+
+
+
+        <div class="w-full bg-slate-100 dark:bg-slate-700 h-2.5 rounded-full mb-10 overflow-hidden">
+
+            <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-purple-600 h-full w-0 transition-all duration-700 ease-out"></div>
+
+        </div>
+
+
+
+        <div class="mb-8">
+
+            <div class="flex justify-between mb-3">
+
+                <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Answer Zone</p>
+
+                <p class="text-[11px] font-bold text-indigo-500 uppercase">Click tiles to remove</p>
+
+            </div>
+
+            <div id="answer-zone" class="drop-zone p-5 bg-slate-50/50"></div>
+
+        </div>
+
+
+
+        <div class="mb-12">
+
+            <p class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Word Pool</p>
+
+            <div id="word-pool" class="flex flex-wrap gap-2.5 justify-center min-h-[80px]"></div>
+
+        </div>
+
+
+
         <div class="grid grid-cols-2 gap-4">
-            <button id="reset-btn" class="py-5 bg-slate-100 text-slate-600 rounded-[1.5rem] font-black hover:bg-slate-200">초기화</button>
-            <button id="check-btn" class="py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black hover:bg-indigo-700">정답 확인</button>
-            <button id="next-btn" class="hidden col-span-2 py-5 bg-emerald-500 text-white rounded-[1.5rem] font-black hover:bg-emerald-600">다음 문장으로</button>
+
+            <button id="reset-btn" class="py-5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-[1.5rem] font-black hover:bg-slate-200 transition-all">초기화</button>
+
+            <button id="check-btn" class="py-5 bg-indigo-600 text-white rounded-[1.5rem] font-black shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all">정답 확인</button>
+
+            <button id="next-btn" class="hidden col-span-2 py-5 bg-emerald-500 text-white rounded-[1.5rem] font-black shadow-lg shadow-emerald-100 hover:bg-emerald-600 transition-all">다음 문장으로</button>
+
         </div>
-        <div id="feedback" class="mt-8 text-center font-black text-xl opacity-0 h-8 transition-opacity"></div>
+
+        <div id="feedback" class="mt-8 text-center font-black text-xl opacity-0 transition-all h-8">정답입니다!</div>
+
     </main>
 
-    <!-- 설정 모달 -->
-    <div id="settings-modal" class="modal">
-        <div class="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative">
-            <button id="settings-close" class="absolute top-6 right-6 font-bold text-2xl">&times;</button>
-            <h3 class="text-2xl font-black mb-4">Gemini API 설정</h3>
-            <p class="text-sm text-slate-500 mb-6 leading-relaxed">본인의 API 키를 입력해야 AI 생성이 가능합니다. 키는 브라우저에만 저장됩니다.</p>
-            <input type="password" id="api-key-input" placeholder="AIZA..." 
-                   class="w-full p-4 rounded-2xl border border-slate-200 mb-4 outline-none focus:ring-2 focus:ring-indigo-500">
-            <button id="save-api-key" class="w-full py-4 bg-slate-800 text-white rounded-2xl font-black hover:bg-slate-900 transition-colors">저장하기</button>
+
+
+    <!-- 4. 순위표 모달 -->
+
+    <div id="rank-modal" class="modal">
+
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl relative">
+
+            <button id="rank-close" class="absolute top-6 right-6 w-10 h-10 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 hover:bg-slate-200">&times;</button>
+
+            <h3 class="text-2xl font-black mb-8 dark:text-white flex items-center gap-3">🏆 실시간 순위표</h3>
+
+            <div id="rank-list" class="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+
+                <p class="text-center py-10 text-slate-400">순위 데이터를 불러오는 중...</p>
+
+            </div>
+
         </div>
+
     </div>
 
-    <!-- 관리자 모달 -->
+
+
+    <!-- 5. 관리자/AI 생성 모달 -->
+
     <div id="admin-modal" class="modal">
-        <div class="bg-white w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+
+        <div class="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[2.5rem] p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+
             <div class="flex justify-between items-center mb-8">
-                <h3 class="text-2xl font-black">AI 문장 관리</h3>
-                <button id="admin-close" class="text-2xl">&times;</button>
+
+                <h3 class="text-2xl font-black dark:text-white font-black">AI 문장 생성 & 관리</h3>
+
+                <button id="admin-close" class="text-2xl text-slate-400">&times;</button>
+
             </div>
-            <div class="bg-indigo-50 p-6 rounded-[2rem] mb-8">
-                <p class="text-indigo-600 font-black text-sm mb-4">✨ AI 문장 생성 (Gemini API)</p>
+
+            
+
+            <div class="bg-indigo-50 dark:bg-indigo-900/20 p-6 rounded-[2rem] border border-indigo-100 dark:border-indigo-800 mb-8">
+
+                <p class="text-indigo-600 font-black text-sm mb-4 uppercase tracking-tighter italic">✨ AI Generation Power</p>
+
                 <div class="flex gap-2">
-                    <input type="text" id="ai-prompt" placeholder="주제 (예: 취미, 여행)" class="flex-1 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-300">
-                    <button id="generate-ai-btn" class="px-8 bg-indigo-600 text-white rounded-2xl font-black flex items-center justify-center min-w-[100px]">생성</button>
+
+                    <input type="text" id="ai-prompt" placeholder="예: 목적격 관계대명사가 포함된 우주 테마 문장 5개" 
+
+                           class="flex-1 p-4 rounded-2xl border-none shadow-inner dark:bg-slate-900 outline-none focus:ring-2 focus:ring-indigo-500">
+
+                    <button id="generate-ai-btn" class="px-8 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 disabled:opacity-50">생성</button>
+
                 </div>
+
             </div>
-            <div id="admin-quiz-list" class="space-y-3"></div>
+
+
+
+            <div id="admin-quiz-list" class="space-y-3">
+
+                <!-- 현재 문장 목록 -->
+
+            </div>
+
         </div>
+
     </div>
+
+
+
+    <!-- Firebase 및 로직 스크립트 -->
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, collection, onSnapshot, updateDoc, increment, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // [중요] GitHub Pages에서 연동하려면 이 값을 실제 본인의 Firebase 정보로 채워야 합니다.
-        // 채우지 않으면 앱은 로컬 모드로 동작을 시도합니다.
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, increment, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+
+
         const firebaseConfig = {
-            apiKey: "YOUR_FIREBASE_API_KEY",
-            authDomain: "YOUR_PROJECT.firebaseapp.com",
-            projectId: "YOUR_PROJECT",
-            storageBucket: "YOUR_PROJECT.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
 
-        const isFirebaseValid = firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY";
-        let db, auth;
-        const appId = 'scramble-github-v1';
+            apiKey: "AIzaSyA3j1y-fDVwULntoBFIVmGlLhROSyk7yRs",
 
-        if (isFirebaseValid) {
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } else {
-            console.warn("Firebase config is placeholder. Firestore features disabled.");
-        }
+            authDomain: "english-scramble.firebaseapp.com",
 
-        let quizzes = [];
+            projectId: "english-scramble",
+
+            storageBucket: "english-scramble.firebasestorage.app",
+
+            messagingSenderId: "1051575656252",
+
+            appId: "1:1051575656252:web:1a25ee13efbe8dc47fc839",
+
+            measurementId: "G-L92WNLFTHZ"        };
+
+
+
+        const GEMINI_API_KEY = "AIzaSyAW3PAPC5lBZvqR_xUN0Tr1y3eS-Oe3uPc"; 
+
+
+
+
+
+        const app = initializeApp(firebaseConfig);
+
+        const auth = getAuth(app);
+
+        const db = getFirestore(app);
+
+        const appId = 'scramble-pro-v3';
+
+
+
+        // 기본 퀴즈 데이터 (DB가 비어있을 때 사용)
+
+        let quizzes = [
+
+            { en: "Gazzaniga then asked participants why they chose the card that they did", ko: "Gazzaniga는 그다음 참가자들에게 왜 그들이 그 카드를 선택했는지를 물었다." },
+
+            { en: "the tariff that protects steelworkers raises the price of the steel that domestic automobile makers need to build their cars", ko: "철강 노동자를 보호하는 관세는 국내 자동차 제조업체들이 자동차를 만들기 위해 필요한 철강의 가격을 상승시킨다." },
+
+            { en: "our brains experience a sense of reward when we create something new in the process of exploring something uncertain, such as a musical phrase that we’ve never played or heard before", ko: "우리의 뇌는 한 번도 연주하거나 들어본 적 없는 음악 구절처럼, 불확실한 것을 탐색하는 과정에서 새로운 무언가를 만들어낼 때 보상의 감각을 경험한다." },
+
+            { en: "mental development consists of individuals increasingly mastering social codes and signals themselves, which they can master only in social situations with the support of more competent individuals, typically adults", ko: "정신 발달이란 개인이 사회적 규범과 신호를 점점 더 스스로 습득해 가는 과정이며, 이러한 것들은 보통 성인과 같은 더 유능한 사람들의 도움을 받는 사회적 상황에서만 습득할 수 있다." },
+
+            { en: "by clarifying the nature of the old and new perspectives, and by identifying actions on which we might cooperate to move the process along, we can help accelerate the shift", ko: "기존 관점과 새로운 관점의 성격을 분명히 하고, 그 과정을 진전시키기 위해 우리가 협력할 수 있는 행동들을 찾아낸다면, 우리는 그 전환을 가속화하는 데 도움을 줄 수 있다." }
+
+        ];
+
         let currentIdx = 0;
+
         let selectedWords = [];
+
         let currentUser = null;
-        let score = 0;
 
-        function showMsg(m) {
-            const a = document.getElementById('custom-alert');
-            a.innerText = m; a.style.display = 'block';
-            setTimeout(() => a.style.display = 'none', 3000);
-        }
 
-        let savedApiKey = localStorage.getItem('GEMINI_API_KEY') || "";
-        document.getElementById('api-key-input').value = savedApiKey;
 
-        document.getElementById('save-api-key').onclick = () => {
-            const key = document.getElementById('api-key-input').value.trim();
-            if(!key) return showMsg("키를 입력하세요.");
-            localStorage.setItem('GEMINI_API_KEY', key);
-            savedApiKey = key;
-            showMsg("API 키가 저장되었습니다.");
-            document.getElementById('settings-modal').classList.remove('active');
+        const ui = {
+
+            loginModal: document.getElementById('login-modal'),
+
+            nicknameInput: document.getElementById('user-nickname'),
+
+            startBtn: document.getElementById('start-btn'),
+
+            displayName: document.getElementById('display-name'),
+
+            scoreDisplay: document.getElementById('score-display'),
+
+            translation: document.getElementById('translation'),
+
+            answerZone: document.getElementById('answer-zone'),
+
+            wordPool: document.getElementById('word-pool'),
+
+            feedback: document.getElementById('feedback'),
+
+            checkBtn: document.getElementById('check-btn'),
+
+            nextBtn: document.getElementById('next-btn'),
+
+            progressBar: document.getElementById('progress-bar'),
+
+            rankList: document.getElementById('rank-list')
+
         };
 
-        const initAuth = async () => {
-            if (!isFirebaseValid) return;
-            try {
-                await signInAnonymously(auth);
-            } catch (e) {
-                console.error("Auth Error:", e);
-                document.getElementById('auth-error-hint').classList.remove('hidden');
-                showMsg("Firebase API 키 에러! 코드를 확인해 주세요.");
-            }
-        };
-        initAuth();
 
-        document.getElementById('start-btn').onclick = async () => {
-            const nick = document.getElementById('user-nickname').value.trim();
-            if(!nick) return showMsg("이름을 입력하세요.");
-            
-            document.getElementById('display-name').innerText = nick;
-            document.getElementById('user-avatar').innerText = nick.charAt(0);
-            
-            if (isFirebaseValid && auth.currentUser) {
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', auth.currentUser.uid);
-                await setDoc(userRef, { nickname: nick, score: 0, lastUpdated: Date.now() }, { merge: true });
-            }
-            document.getElementById('login-modal').classList.remove('active');
-        };
 
-        if (isFirebaseValid) {
-            onAuthStateChanged(auth, (user) => {
-                if(user) {
-                    currentUser = user;
-                    onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'quizzes'), (snap) => {
-                        const l = []; snap.forEach(d => l.push({id: d.id, ...d.data()}));
-                        quizzes = l.sort((a,b) => (a.createdAt || 0) - (b.createdAt || 0));
-                        if(quizzes.length > 0) loadQuiz();
-                        updateAdminList();
-                    });
-                    onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), (snap) => {
-                        if(snap.exists()) {
-                            const d = snap.data();
-                            score = d.score || 0;
-                            document.getElementById('score-display').innerText = score;
-                        }
-                    });
-                }
-            });
-        }
+        // 1. 로그인 처리
 
-        document.getElementById('generate-ai-btn').onclick = async () => {
-            if(!savedApiKey) {
-                showMsg("설정에서 API Key를 먼저 등록해주세요.");
-                document.getElementById('settings-modal').classList.add('active');
+        ui.startBtn.onclick = async () => {
+
+            const nickname = ui.nicknameInput.value.trim();
+
+            if (!nickname) {
+
+                alert("이름을 입력해야 점수가 저장됩니다!");
+
                 return;
+
             }
 
-            const prompt = document.getElementById('ai-prompt').value.trim();
-            if (!prompt) return showMsg("주제를 입력하세요.");
 
-            const btn = document.getElementById('generate-ai-btn');
-            btn.disabled = true;
-            btn.innerHTML = `<span class="spinner"></span>생성 중...`;
+
+            ui.startBtn.disabled = true;
+
+            ui.startBtn.innerText = "접속 중...";
+
+
 
             try {
-                const sys = "You are an English teacher. Create ONE English sentence about the user's topic. Response must be JSON: {\"en\": \"sentence\", \"ko\": \"translation\"}";
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${savedApiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: `Topic: ${prompt}` }] }],
-                        systemInstruction: { parts: [{ text: sys }] },
-                        generationConfig: { responseMimeType: "application/json" }
-                    })
+
+                const cred = await signInAnonymously(auth);
+
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', cred.user.uid);
+
+                
+
+                await setDoc(userRef, {
+
+                    nickname: nickname,
+
+                    score: 0,
+
+                    lastUpdated: Date.now()
+
+                }, { merge: true });
+
+
+
+                ui.loginModal.classList.remove('active');
+
+                // 로그인 직후 게임 로드 강제 실행
+
+                loadQuiz(); 
+
+            } catch (e) {
+
+                console.error(e);
+
+                alert("접속 실패: Firebase 설정을 확인하세요.");
+
+                ui.startBtn.disabled = false;
+
+                ui.startBtn.innerText = "학습 시작하기";
+
+            }
+
+        };
+
+
+
+        // 2. 인증 감지 및 초기화
+
+        onAuthStateChanged(auth, (user) => {
+
+            if (user) {
+
+                currentUser = user;
+
+                onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid), (snap) => {
+
+                    if (snap.exists()) {
+
+                        const data = snap.data();
+
+                        ui.displayName.innerText = data.nickname;
+
+                        ui.scoreDisplay.innerText = data.score;
+
+                        document.getElementById('user-avatar').innerText = data.nickname.charAt(0);
+
+                    }
+
                 });
 
-                if (!res.ok) throw new Error("API Key 오류 또는 할당량 초과");
+                setupSync();
+
+            }
+
+        });
+
+
+
+        // 3. 데이터 동기화
+
+        function setupSync() {
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'quizzes'), (snap) => {
+
+                const cloudQuizzes = [];
+
+                snap.forEach(doc => cloudQuizzes.push({ id: doc.id, ...doc.data() }));
+
                 
-                const data = await res.json();
-                const jsonStr = data.candidates[0].content.parts[0].text;
-                const quizData = JSON.parse(jsonStr);
-                
-                if (isFirebaseValid) {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'quizzes'), {
-                        ...quizData,
-                        createdAt: Date.now()
-                    });
-                } else {
-                    quizzes.push({ id: Date.now().toString(), ...quizData });
-                    loadQuiz();
-                    updateAdminList();
+
+                if (cloudQuizzes.length > 0) {
+
+                    quizzes = cloudQuizzes.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
                 }
 
-                showMsg("문장이 생성되었습니다.");
-                document.getElementById('ai-prompt').value = '';
-            } catch (e) {
-                showMsg("AI 생성 실패: " + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "생성";
-            }
-        };
+                
+
+                loadQuiz();
+
+                updateAdminList();
+
+            });
+
+
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'users'), (snap) => {
+
+                const users = [];
+
+                snap.forEach(doc => users.push({ id: doc.id, ...doc.data() }));
+
+                users.sort((a, b) => b.score - a.score);
+
+                
+
+                ui.rankList.innerHTML = users.map((u, i) => `
+
+                    <div class="flex justify-between items-center p-4 ${u.id === currentUser?.uid ? 'bg-indigo-50 border border-indigo-200 ring-4 ring-indigo-500/10' : 'bg-slate-50'} rounded-2xl transition-all">
+
+                        <div class="flex items-center gap-4">
+
+                            <span class="text-lg font-black ${i < 3 ? 'text-indigo-600' : 'text-slate-300'}">${i + 1}</span>
+
+                            <span class="font-bold text-slate-700">${u.nickname} ${u.id === currentUser?.uid ? '(나)' : ''}</span>
+
+                        </div>
+
+                        <span class="font-black text-indigo-600">${u.score}점</span>
+
+                    </div>
+
+                `).join('');
+
+            });
+
+        }
+
+
+
+        // 4. 게임 로직
 
         function loadQuiz() {
-            if(quizzes.length === 0) return;
-            const q = quizzes[currentIdx % quizzes.length];
-            document.getElementById('translation').innerText = q.ko;
-            document.getElementById('level-badge').innerText = `Sentence ${currentIdx + 1} / ${quizzes.length}`;
-            document.getElementById('word-pool').innerHTML = '';
-            document.getElementById('answer-zone').innerHTML = '';
-            document.getElementById('feedback').style.opacity = '0';
-            document.getElementById('check-btn').classList.remove('hidden');
-            document.getElementById('next-btn').classList.add('hidden');
+
+            if (!currentUser || quizzes.length === 0) return;
+
+            
+
+            const quiz = quizzes[currentIdx % quizzes.length];
+
+            ui.translation.innerText = quiz.ko;
+
+            ui.progressBar.style.width = `${((currentIdx + 1) / quizzes.length) * 100}%`;
+
+            document.getElementById('level-badge').innerText = `SENTENCE ${currentIdx + 1} / ${quizzes.length}`;
+
+            
+
+            ui.answerZone.innerHTML = '';
+
+            ui.answerZone.classList.remove('correct', 'incorrect');
+
+            ui.feedback.style.opacity = '0';
+
+            ui.nextBtn.classList.add('hidden');
+
+            ui.checkBtn.classList.remove('hidden');
+
             selectedWords = [];
 
-            const words = q.en.split(/\s+/).filter(w => w.length > 0);
-            [...words].sort(() => Math.random()-0.5).forEach(w => {
-                const b = document.createElement('div');
-                b.className = 'word-tile bg-white border border-slate-200 shadow-sm p-4 rounded-xl font-bold hover:border-indigo-500';
-                b.innerText = w;
-                b.onclick = () => {
-                    if(b.classList.contains('selected')) return;
-                    b.classList.add('selected');
-                    const t = document.createElement('div');
-                    t.className = 'word-tile bg-indigo-600 text-white p-4 rounded-xl font-bold shadow-md';
-                    t.innerText = w;
-                    t.onclick = () => { 
-                        b.classList.remove('selected'); 
-                        t.remove(); 
-                        selectedWords = selectedWords.filter(s => s.t !== t); 
+
+
+            const words = quiz.en.split(/\s+/).filter(w => w.length > 0);
+
+            const shuffled = [...words].sort(() => Math.random() - 0.5);
+
+
+
+            ui.wordPool.innerHTML = '';
+
+            shuffled.forEach((word) => {
+
+                const btn = document.createElement('div');
+
+                btn.className = 'word-tile bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-5 py-4 rounded-[1.2rem] font-bold text-slate-700 dark:text-slate-200 shadow-sm hover:shadow-md hover:border-indigo-400 active:scale-90 transition-all';
+
+                btn.innerText = word;
+
+                btn.onclick = () => {
+
+                    btn.classList.add('selected');
+
+                    const tile = document.createElement('div');
+
+                    tile.className = 'word-tile bg-indigo-600 text-white px-5 py-4 rounded-[1.2rem] font-bold shadow-lg shadow-indigo-200 animate-in fade-in zoom-in duration-200';
+
+                    tile.innerText = word;
+
+                    tile.onclick = () => {
+
+                        btn.classList.remove('selected');
+
+                        tile.remove();
+
+                        selectedWords = selectedWords.filter(item => item.tile !== tile);
+
                     };
-                    document.getElementById('answer-zone').appendChild(t);
-                    selectedWords.push({w, t});
+
+                    ui.answerZone.appendChild(tile);
+
+                    selectedWords.push({ word, tile });
+
                 };
-                document.getElementById('word-pool').appendChild(b);
+
+                ui.wordPool.appendChild(btn);
+
             });
+
         }
 
-        document.getElementById('check-btn').onclick = async () => {
-            if(selectedWords.length === 0) return;
-            const userStr = selectedWords.map(s => s.w.toLowerCase().replace(/[.?!,]/g,"")).join(' ');
-            const correctStr = quizzes[currentIdx % quizzes.length].en.toLowerCase().replace(/[.?!,]/g,"");
-            
-            const fb = document.getElementById('feedback');
-            if(userStr === correctStr) {
-                fb.innerText = "정답입니다! 🎉"; 
-                fb.className = "mt-8 text-center font-black text-xl text-emerald-500 opacity-100";
-                document.getElementById('check-btn').classList.add('hidden');
-                document.getElementById('next-btn').classList.remove('hidden');
-                if (isFirebaseValid && currentUser) {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), { score: increment(10) });
-                } else {
-                    score += 10;
-                    document.getElementById('score-display').innerText = score;
+
+
+        ui.checkBtn.onclick = async () => {
+
+            if (selectedWords.length === 0) return;
+
+            const userSentence = selectedWords.map(w => w.word.toLowerCase().replace(/[.,!?;]/g, "")).join(' ');
+
+            const correctSentence = quizzes[currentIdx % quizzes.length].en.toLowerCase().replace(/[.,!?;]/g, "").trim();
+
+
+
+            if (userSentence === correctSentence) {
+
+                ui.feedback.innerText = "정답입니다! +10점 저장 중...";
+
+                ui.feedback.className = "mt-8 text-center font-black text-xl text-emerald-500 opacity-100";
+
+                ui.answerZone.classList.add('correct');
+
+                
+
+                if (currentUser) {
+
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
+
+                        score: increment(10),
+
+                        lastUpdated: Date.now()
+
+                    });
+
                 }
+
+
+
+                ui.checkBtn.classList.add('hidden');
+
+                ui.nextBtn.classList.remove('hidden');
+
             } else {
-                fb.innerText = "다시 한 번 생각해보세요. 💡"; 
-                fb.className = "mt-8 text-center font-black text-xl text-red-400 opacity-100";
+
+                ui.feedback.innerText = "다시 한번 확인해보세요!";
+
+                ui.feedback.className = "mt-8 text-center font-black text-xl text-red-500 opacity-100";
+
+                ui.answerZone.classList.add('incorrect');
+
+                setTimeout(() => ui.answerZone.classList.remove('incorrect'), 800);
+
             }
+
         };
 
-        document.getElementById('next-btn').onclick = () => { currentIdx++; loadQuiz(); };
-        document.getElementById('reset-btn').onclick = loadQuiz;
-        document.getElementById('settings-btn').onclick = () => document.getElementById('settings-modal').classList.add('active');
-        document.getElementById('settings-close').onclick = () => document.getElementById('settings-modal').classList.remove('active');
-        document.getElementById('admin-btn').onclick = () => document.getElementById('admin-modal').classList.add('active');
-        document.getElementById('admin-close').onclick = () => document.getElementById('admin-modal').classList.remove('active');
+
+
+        ui.nextBtn.onclick = () => {
+
+            currentIdx = (currentIdx + 1) % quizzes.length;
+
+            loadQuiz();
+
+        };
+
+
+
+        // 5. 관리 기능
+
+        document.getElementById('generate-ai-btn').onclick = async () => {
+
+            const prompt = document.getElementById('ai-prompt').value.trim();
+
+            if (!prompt || !GEMINI_API_KEY) return alert("프롬프트와 API 키를 확인하세요.");
+
+            
+
+            const btn = document.getElementById('generate-ai-btn');
+
+            btn.disabled = true;
+
+            btn.innerText = "생성 중...";
+
+
+
+            try {
+
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_API_KEY}`, {
+
+                    method: 'POST',
+
+                    headers: { 'Content-Type': 'application/json' },
+
+                    body: JSON.stringify({
+
+                        contents: [{ parts: [{ text: `Generate 5 English sentences with 'Objective case relative pronouns' (who, whom, which, that) about: ${prompt}. Each sentence must be a single string. Output format: JSON array of objects with keys "en" and "ko". Example: [{"en": "The book that I read was fun", "ko": "내가 읽은 책은 재미있었다"}]` }] }],
+
+                        generationConfig: { responseMimeType: "application/json" }
+
+                    })
+
+                });
+
+                const data = await response.json();
+
+                const items = JSON.parse(data.candidates[0].content.parts[0].text);
+
+                
+
+                const batch = writeBatch(db);
+
+                items.forEach(q => {
+
+                    const ref = doc(collection(db, 'artifacts', appId, 'public', 'data', 'quizzes'));
+
+                    batch.set(ref, { ...q, createdAt: Date.now() });
+
+                });
+
+                await batch.commit();
+
+                document.getElementById('ai-prompt').value = "";
+
+            } catch (e) { 
+
+                console.error(e); 
+
+                alert("AI 생성 오류가 발생했습니다."); 
+
+            } finally {
+
+                btn.disabled = false;
+
+                btn.innerText = "생성";
+
+            }
+
+        };
+
+
 
         function updateAdminList() {
-            document.getElementById('admin-quiz-list').innerHTML = quizzes.map(q => `
+
+            const list = document.getElementById('admin-quiz-list');
+
+            list.innerHTML = quizzes.map(q => `
+
                 <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div class="flex-1 mr-4 overflow-hidden">
-                        <p class="font-bold text-slate-800 truncate">${q.en}</p>
-                        <p class="text-xs text-slate-500 truncate">${q.ko}</p>
+
+                    <div class="text-sm">
+
+                        <p class="font-black text-indigo-600">${q.en}</p>
+
+                        <p class="text-slate-400 font-bold">${q.ko}</p>
+
                     </div>
-                    <button onclick="window.del('${q.id}')" class="text-red-500 bg-white border border-red-100 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-50">삭제</button>
+
+                    <button onclick="window.delQuiz('${q.id}')" class="p-2 text-red-400 hover:text-red-600 font-black">삭제</button>
+
                 </div>
+
             `).join('');
+
         }
-        window.del = (id) => { 
-            if(confirm("정말 삭제할까요?")) {
-                if (isFirebaseValid) {
-                    deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'quizzes', id));
-                } else {
-                    quizzes = quizzes.filter(q => q.id !== id);
-                    updateAdminList();
-                    loadQuiz();
-                }
+
+
+
+        window.delQuiz = async (id) => { 
+
+            if(id && confirm("삭제할까요?")) {
+
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'quizzes', id)); 
+
             }
+
         };
+
+
+
+        // 6. UI 이벤트
+
+        document.getElementById('rank-btn').onclick = () => document.getElementById('rank-modal').classList.add('active');
+
+        document.getElementById('rank-close').onclick = () => document.getElementById('rank-modal').classList.remove('active');
+
+        document.getElementById('admin-btn').onclick = () => document.getElementById('admin-modal').classList.add('active');
+
+        document.getElementById('admin-close').onclick = () => document.getElementById('admin-modal').classList.remove('active');
+
+        document.getElementById('reset-btn').onclick = loadQuiz;
+
     </script>
+
 </body>
+
 </html>
